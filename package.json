@@ -1,0 +1,7 @@
+{
+  "name": "defi-money-engine",
+  "version": "1.0.0",
+  "description": "Automated DeFi yield and airdrop opportunity scanner",
+  "main": "money-engine.js",
+  "license": "MIT"
+}
