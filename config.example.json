@@ -1,0 +1,43 @@
+{
+  "wallet": "0xYOUR_WALLET_ADDRESS_HERE",
+  "solanaWallet": null,
+  "chains": {
+    "ethereum": { "rpc": "https://ethereum-rpc.publicnode.com", "chainId": 1, "symbol": "ETH" },
+    "base": { "rpc": "https://mainnet.base.org", "chainId": 8453, "symbol": "ETH" },
+    "arbitrum": { "rpc": "https://arb1.arbitrum.io/rpc", "chainId": 42161, "symbol": "ETH" },
+    "optimism": { "rpc": "https://mainnet.optimism.io", "chainId": 10, "symbol": "ETH" },
+    "polygon": { "rpc": "https://polygon-rpc.com", "chainId": 137, "symbol": "POL" },
+    "bsc": { "rpc": "https://bsc-dataseed1.binance.org", "chainId": 56, "symbol": "BNB" },
+    "avalanche": { "rpc": "https://api.avax.network/ext/bc/C/rpc", "chainId": 43114, "symbol": "AVAX" },
+    "blast": { "rpc": "https://rpc.blast.io", "chainId": 81457, "symbol": "ETH" }
+  },
+  "sources": {
+    "defillama": {
+      "yieldsUrl": "https://yields.llama.fi/pools",
+      "protocolsUrl": "https://api.llama.fi/protocols",
+      "minTvlUsd": 1000000,
+      "minApyPct": 3
+    },
+    "airdropFeeds": [
+      "https://airdrops.io/feed/",
+      "https://defillama.com/rss/hacks"
+    ]
+  },
+  "watchlist": [
+    { "name": "Ether.fi", "chain": "ethereum" },
+    { "name": "EigenLayer", "chain": "ethereum" },
+    { "name": "Pendle", "chain": "ethereum" },
+    { "name": "Aerodrome", "chain": "base" }
+  ],
+  "filters": {
+    "stablecoins": ["USDC", "USDT", "DAI", "LUSD", "FRAX", "GHO"],
+    "excludeIlApy": true,
+    "minPoolAgeDays": 7
+  },
+  "telegram": {
+    "enabled": false,
+    "chatId": "YOUR_CHAT_ID"
+  },
+  "checkIntervalMinutes": 60,
+  "stateFile": "state.json"
+}
