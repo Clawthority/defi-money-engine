@@ -11,38 +11,49 @@ Automated scanner for DeFi yield opportunities, airdrop candidates, and testnet 
 
 ## Data Sources
 
-- [DeFi Llama](https://defillama.com) — Protocol TVL, yield pools
-- [Airdrops.io](https://airdrops.io) — Airdrop news and guides
-- Public chain RPCs — On-chain balance checks
+- [DeFi Llama](https://defillama.com) — Protocol TVL, yield pools (fully integrated)
+- Public chain RPCs — On-chain balance checks (configured)
 
 ## Quick Start
 
 ```bash
-npm install
 cp config.example.json config.json
-# Edit config.json with your wallet address
-node money-engine.js | node format.js
+# Edit config.json with your wallet address (optional)
+node scanner.js --once | node format.js
+```
+
+### Filter Options
+
+```bash
+# Only stablecoin yields ≥5% APY
+node scanner.js --once | node format.js --min-apy=5 --stablecoins-only
+
+# Only yields with ≥$5M TVL
+node scanner.js --once | node format.js --min-tvl=5000000
+```
+
+### Continuous Mode
+
+```bash
+# Run every 60 minutes (configured in config.json)
+node scanner.js
 ```
 
 ## Output
 
 ```
-💰 Money Engine Report
+💰 DeFi Money Engine — 20 opportunities found
 
-🎯 Top Opportunities:
-🪂 Airdrop Candidates:
-  • Protocol Name (Ethereum)
-    TVL: $500M, no token — likely airdrop
-    Est: $100-$5,000+
+━━━ 🪂 Airdrop Candidates ━━━
+💎 **Kelp**
+  💰 TVL: $1.2B (-4.05% 7d) — no token
+  ⛓️ Multi-Chain | Liquid Restaking
+  🎯 Est: $500-$10,000+
 
-📈 Yield Pools:
-  • Project — USDC (Ethereum)
-    APY: 12.5% | TVL: $200M
-
-🧪 Testnets:
-  • Monad (Monad L1)
-    $225M funded, testnet live
-    Est: $500-$5,000+
+━━━ ⭐ Watchlist Pools ━━━
+📈 **Pendle** — USDG ⭐
+  📊 APY: 5.4% (30d avg: 5.25%) | TVL: $74.9M
+  ⛓️ Ethereum | Risk: no
 ```
 
 ## License
