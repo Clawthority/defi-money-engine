@@ -1,7 +1,29 @@
 {
   "name": "defi-money-engine",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automated DeFi yield and airdrop opportunity scanner",
-  "main": "money-engine.js",
-  "license": "MIT"
+  "main": "scanner.js",
+  "scripts": {
+    "scan": "node scanner.js --once | node format.js",
+    "scan:stablecoins": "node scanner.js --once | node format.js --stablecoins-only --min-apy=5",
+    "scan:json": "node scanner.js --once",
+    "start": "node scanner.js",
+    "test": "node -c scanner.js && node -c format.js && echo 'All OK'"
+  },
+  "keywords": [
+    "defi",
+    "yield",
+    "airdrop",
+    "crypto",
+    "scanner",
+    "ethereum",
+    "defillama",
+    "passive-income",
+    "web3",
+    "DeFi Llama"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
 }

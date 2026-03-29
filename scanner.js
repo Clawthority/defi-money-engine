@@ -27,9 +27,21 @@ function loadConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
 }
 
-// ── HTTP fetch with timeout & retry ─────────────────────────────────
+// ── Rate limiter ────────────────────────────────────────────────────
+const _rateLimits = {};
+function rateLimit(domain, minIntervalMs = 2000) {
+  const now = Date.now();
+  const last = _rateLimits[domain] || 0;
+  const wait = Math.max(0, last + minIntervalMs - now);
+  if (wait > 0) return new Promise(r => setTimeout(r, wait)).then(() => { _rateLimits[domain] = Date.now(); });
+  _rateLimits[domain] = now;
+  return Promise.resolve();
+}
+
+// ── HTTP fetch with timeout, retry, and rate limiting ───────────────
 function fetch(url, timeoutMs = 15000, maxRetries = 2) {
-  return new Promise((resolve, reject) => {
+  const domain = new URL(url).hostname;
+  return rateLimit(domain, 1500).then(() => new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http;
     const req = mod.get(url, {
       timeout: timeoutMs,
@@ -54,8 +66,15 @@ function fetch(url, timeoutMs = 15000, maxRetries = 2) {
         reject(err);
       }
     });
-    req.on('timeout', () => { req.destroy(); reject(new Error(`Timeout: ${url}`)); });
-  });
+    req.on('timeout', () => {
+      req.destroy();
+      if (maxRetries > 0) {
+        setTimeout(() => fetch(url, timeoutMs, maxRetries - 1).then(resolve, reject), 1000);
+      } else {
+        reject(new Error(`Timeout: ${url}`));
+      }
+    });
+  })); // close Promise + .then()
 }
 
 // ── State persistence ───────────────────────────────────────────────
@@ -83,7 +102,8 @@ async function scanYields(config) {
 
   console.error('Fetching yield pools from DeFi Llama...');
   const raw = await fetch(defillama.yieldsUrl);
-  const data = JSON.parse(raw);
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { console.error('Failed to parse yields response:', e.message); return []; }
 
   if (!data.data || !Array.isArray(data.data)) {
     console.error('Unexpected DeFi Llama response format');
@@ -166,7 +186,8 @@ async function scanAirdropCandidates(config) {
 
   console.error('Fetching protocols from DeFi Llama for airdrop analysis...');
   const raw = await fetch(defillama.protocolsUrl);
-  const protocols = JSON.parse(raw);
+  let protocols;
+  try { protocols = JSON.parse(raw); } catch(e) { console.error('Failed to parse protocols response:', e.message); return []; }
 
   if (!Array.isArray(protocols)) {
     console.error('Unexpected protocols response format');
