@@ -8,7 +8,8 @@
     "scan:stablecoins": "node scanner.js --once | node format.js --stablecoins-only --min-apy=5",
     "scan:json": "node scanner.js --once",
     "start": "node scanner.js",
-    "test": "node -c scanner.js && node -c format.js && echo 'All OK'"
+    "test": "node --test test/scanner.test.js",
+    "test:syntax": "node -c scanner.js && node -c format.js && echo 'All OK'"
   },
   "keywords": [
     "defi",
