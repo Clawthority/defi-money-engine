@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 /**
  * DeFi Money Engine — Telegram formatter.
- * Reads JSON lines from stdin (scanner.js output) and formats for Telegram.
+ * Reads JSON lines from stdin (scanner.js or defillama-scanner.js output) and formats for Telegram.
  *
- * Usage: node scanner.js --once | node format.js [--min-apy N] [--min-tvl N] [--stablecoins-only]
+ * Supports findings from:
+ *   - scanner.js: yield pools + airdrop candidates
+ *   - defillama-scanner.js: TVL anomalies, chain expansion, tokenless chains, momentum signals
+ *
+ * Usage:
+ *   node scanner.js --once | node format.js [--min-apy N] [--min-tvl N] [--stablecoins-only]
+ *   node defillama-scanner.js --once | node format.js
+ *   node scanner.js --once | node defillama-scanner.js --once | node format.js
  */
 
 const MIN_APY = parseFloat(process.argv.find(a => a.startsWith('--min-apy='))?.split('=')[1] || '0');
@@ -83,8 +90,12 @@ function formatAirdrop(item) {
 function formatReport(items) {
   const yields = items.filter(i => i.type === 'yield');
   const airdrops = items.filter(i => i.type === 'airdrop');
+  const anomalies = items.filter(i => i.type === 'tvl_anomaly');
+  const expansions = items.filter(i => i.type === 'chain_expansion');
+  const chainAirdrops = items.filter(i => i.type === 'chain_airdrop');
+  const momentum = items.filter(i => i.type === 'momentum');
 
-  // Apply filters
+  // Apply filters to yields only
   let filteredYields = yields.filter(y => y.apy >= MIN_APY && y.tvlUsd >= MIN_TVL);
   if (STABLECOINS_ONLY) {
     filteredYields = filteredYields.filter(y => y.stablecoin);
@@ -99,16 +110,52 @@ function formatReport(items) {
   const parts = [];
 
   // Header
-  const total = filteredYields.length + airdrops.length;
+  const total = filteredYields.length + airdrops.length + anomalies.length + expansions.length + chainAirdrops.length + momentum.length;
   if (total === 0) {
     return '✅ No new opportunities matching your filters. Try lowering min-apy or min-tvl.';
   }
 
-  parts.push(`💰 **DeFi Money Engine** — ${total} opportunit${total > 1 ? 'ies' : 'y'} found\n`);
+  parts.push(`💰 **DeFi Money Engine** — ${total} finding${total > 1 ? 's' : ''} found\n`);
 
-  // Airdrop candidates first (highest value)
+  // ── Protocol Scanner Findings ──
+
+  // TVL Anomalies (highest signal — mispricing alerts)
+  if (anomalies.length > 0) {
+    parts.push('━━━ 🚨 **TVL Anomalies** ━━━');
+    parts.push(anomalies.map(formatAnomaly).join('\n\n'));
+  }
+
+  // Chain Airdrop Candidates
+  if (chainAirdrops.length > 0) {
+    parts.push('━━━ ⛓️ **Chain Airdrop Candidates** ━━━');
+    parts.push(chainAirdrops.map(formatChainAirdrop).join('\n\n'));
+  }
+
+  // Momentum Signals
+  if (momentum.length > 0) {
+    const growth = momentum.filter(m => m.subtype !== 'rapid_decline_7d');
+    const decline = momentum.filter(m => m.subtype === 'rapid_decline_7d');
+    if (growth.length > 0) {
+      parts.push('━━━ 📈 **TVL Momentum — Growth** ━━━');
+      parts.push(growth.slice(0, 8).map(formatMomentum).join('\n\n'));
+    }
+    if (decline.length > 0) {
+      parts.push('━━━ 📉 **TVL Momentum — Outflow Risk** ━━━');
+      parts.push(decline.slice(0, 5).map(formatMomentum).join('\n\n'));
+    }
+  }
+
+  // Chain Expansion
+  if (expansions.length > 0) {
+    parts.push('━━━ 🌐 **Chain Expansion** ━━━');
+    parts.push(expansions.map(formatExpansion).join('\n\n'));
+  }
+
+  // ── Yield & Airdrop Findings (from scanner.js) ──
+
+  // Airdrop candidates (from yield scanner)
   if (airdrops.length > 0) {
-    parts.push('━━━ 🪂 **Airdrop Candidates** ━━━');
+    parts.push('━━━ 🪂 **Yield Scanner Airdrop Candidates** ━━━');
     parts.push(airdrops.map(formatAirdrop).join('\n\n'));
   }
 
@@ -137,6 +184,94 @@ function formatReport(items) {
   }
 
   return parts.join('\n\n');
+}
+
+// ── Protocol Scanner Formatters ─────────────────────────────────────
+
+/** Severity badge for protocol scanner findings. */
+function sevBadge(severity) {
+  if (severity === 'high') return '🔴';
+  if (severity === 'medium') return '🟡';
+  return '🟢';
+}
+
+/**
+ * Format a TVL anomaly finding (extreme TVL/mcap ratio or divergence signal).
+ * @param {{project:string, symbol:string|null, severity:string, tvlMcapRatio:number, change_7d:number|null, tvlUsd:number, mcapUsd:number, category:string, chain:string}} item
+ */
+function formatAnomaly(item) {
+  const badge = sevBadge(item.severity);
+  const ratio = item.tvlMcapRatio;
+  const ratioLabel = ratio > 100 ? `${ratio}x ⚡` : `${ratio}x`;
+  const changeLabel = item.change_7d !== null ? ` | 7d: ${item.change_7d > 0 ? '+' : ''}${item.change_7d}%` : '';
+
+  let lines = [
+    `${badge} **${esc(item.project)}**${item.symbol ? ` ($${esc(item.symbol)})` : ''}`,
+    `  📊 TVL/Mcap: ${ratioLabel}${changeLabel}`,
+    `  💰 TVL: ${fmtUsd(item.tvlUsd)} | MCap: ${fmtUsd(item.mcapUsd)}`,
+    `  🏷️ ${esc(item.category)} | ${esc(item.chain)}`,
+  ];
+
+  if (ratio > 200) {
+    lines.push(`  ⚠️ Extreme ratio — investigate for mispricing or TVL counting nuance`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Format a chain airdrop candidate (high TVL chain without native token).
+ * @param {{chain:string, subtype:string, severity:string, tvlUsd:number, protocolCount:number, tokenSymbol:string|null}} item
+ */
+function formatChainAirdrop(item) {
+  const badge = sevBadge(item.severity);
+  const newBadge = item.subtype === 'new_candidate' ? ' 🆕' : '';
+
+  let lines = [
+    `${badge} **${esc(item.chain)}**${newBadge}`,
+    `  💰 TVL: ${fmtUsd(item.tvlUsd)} | ${item.protocolCount} protocols`,
+    `  ${item.tokenSymbol ? `Token: ${esc(item.tokenSymbol)}` : '🪂 NO NATIVE TOKEN — airdrop candidate'}`,
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Format a TVL momentum finding (rapid growth, decline, or sustained trend).
+ * @param {{project:string, subtype:string, change_7d:number, change_1m:number|null, change_1y:number|null, tvlUsd:number, chain:string, isWatched:boolean}} item
+ */
+function formatMomentum(item) {
+  const badge = item.subtype === 'rapid_decline_7d' ? '🔻'
+    : item.subtype === 'rapid_growth_7d' ? '🚀'
+    : '📊';
+  const watchedLabel = item.isWatched ? ' ⭐' : '';
+  const change1m = item.change_1m !== null ? ` | 1m: ${item.change_1m > 0 ? '+' : ''}${item.change_1m}%` : '';
+  const change1y = item.change_1y !== null ? ` | 1y: ${item.change_1y > 0 ? '+' : ''}${item.change_1y}%` : '';
+
+  let lines = [
+    `${badge} **${esc(item.project)}**${watchedLabel}`,
+    `  📊 7d: ${item.change_7d > 0 ? '+' : ''}${item.change_7d}%${change1m}${change1y}`,
+    `  💰 TVL: ${fmtUsd(item.tvlUsd)} | ${esc(item.chain)}`,
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Format a chain expansion finding (protocol deploying to new chains).
+ * @param {{project:string, newChains:string[], chainCount:number, tvlUsd:number, isWatched:boolean}} item
+ */
+function formatExpansion(item) {
+  const watchedLabel = item.isWatched ? ' ⭐' : '';
+  const newChains = item.newChains.join(', ');
+
+  let lines = [
+    `🌐 **${esc(item.project)}**${watchedLabel}`,
+    `  🆕 Now on: ${esc(newChains)}`,
+    `  ⛓️ ${item.chainCount} chains total | TVL: ${fmtUsd(item.tvlUsd)}`,
+  ];
+
+  return lines.join('\n');
 }
 
 // ── Main: read JSON lines from stdin ────────────────────────────────
