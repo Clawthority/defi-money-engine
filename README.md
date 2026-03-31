@@ -143,10 +143,24 @@ TELEGRAM_BOT_TOKEN=your_token node bot.js
 | `/yields` | Best yield pools (stablecoins & ETH) |
 | `/airdrops` | Airdrop candidates (high TVL, no token) |
 | `/protocols` | TVL anomalies, momentum, chain expansion |
+| `/watch` | Show your watchlist |
+| `/watch add <name>` | Track a protocol (get alerts on changes) |
+| `/watch remove <name>` | Stop tracking |
 | `/filter apy=5` | Min APY filter |
 | `/filter tvl=5000000` | Min TVL filter |
 | `/filter stablecoins` | Toggle stablecoins only |
 | `/filter reset` | Clear all filters |
+
+### Watchlist & Alerts
+
+The bot includes an alert system — add protocols to your watchlist and get notified when significant changes happen:
+
+- **APY shifts >20%** — yield is pumping or dumping
+- **TVL moves >15%** — capital flowing in or out
+- **New airdrop candidate** — watched protocol gains airdrop signal
+- **New TVL anomaly** — watched protocol shows mispricing signals
+
+Background scanner runs every 30 minutes (configurable via `ALERT_INTERVAL_MINUTES` env var).
 
 ### Deploy
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0] — 2026-03-31
+### Added
+- `watchlist.js` — Per-user watchlist & alert system
+  - `add/remove/list` — CRUD for tracked protocols per Telegram chat
+  - `snapshot()` — Stores scan results for change detection
+  - `checkAlerts()` — Compares new scans against snapshots, triggers on APY >20% change or TVL >15% shift
+  - `formatAlert()` — Telegram-ready alert messages with direction indicators
+  - `allWatched()` / `watchers()` — Cross-user dedup and notification routing
+  - Persistent storage via `watchlist.json`
+- Watchlist bot commands: `/watch`, `/watch add <name>`, `/watch remove <name>`
+- Background alert scanner — runs every 30min (configurable via `ALERT_INTERVAL_MINUTES`), notifies watchers of significant changes
+- `watchlist.js` added to `npm run test:syntax`
+
 ## [1.3.0] — 2026-03-31
 ### Added
 - `bot.js` — Telegram bot interface for DeFi Money Engine

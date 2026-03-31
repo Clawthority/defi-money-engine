@@ -23,12 +23,15 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { spawn } = require('child_process');
 const path = require('path');
+const wl = require('./watchlist');
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!TOKEN) {
   console.error('Error: TELEGRAM_BOT_TOKEN env var required');
   process.exit(1);
 }
+
+const ALERT_INTERVAL_MS = parseInt(process.env.ALERT_INTERVAL_MINUTES || '30', 10) * 60 * 1000;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 console.log('💰 DeFi Money Engine bot started');
@@ -318,6 +321,128 @@ bot.onText(/\/filter(.*)/, (msg, match) => {
   bot.sendMessage(chatId, '❓ Unknown filter. Try: /filter apy=5 | /filter tvl=5000000 | /filter stablecoins | /filter reset');
 });
 
+// ── Watchlist Commands ──────────────────────────────────────────────
+
+bot.onText(/\/watch(.*)/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const arg = (match[1] || '').trim();
+
+  // Show watchlist
+  if (!arg || arg.toLowerCase() === ' list') {
+    const items = wl.list(chatId);
+    if (items.length === 0) {
+      bot.sendMessage(chatId,
+        '📋 *Your Watchlist*\n\nEmpty! Add protocols to track:\n' +
+        '/watch add aave\n/watch add lido\n\n' +
+        'You\'ll get alerts when APY changes >20% or TVL shifts >15%.',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+    bot.sendMessage(chatId,
+      `📋 *Your Watchlist* (${items.length})\n\n` +
+      items.map(i => `  • ${i}`).join('\n') +
+      '\n\n/remove <name> to stop tracking',
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+
+  // Add
+  const addMatch = arg.match(/^add\s+(.+)/i);
+  if (addMatch) {
+    const name = addMatch[1].trim();
+    const result = wl.add(chatId, name);
+    if (result.added) {
+      bot.sendMessage(chatId, `✅ Now watching *${name}*. You'll get alerts on significant changes.`, { parse_mode: 'Markdown' });
+    } else if (result.alreadyExists) {
+      bot.sendMessage(chatId, `ℹ️ Already watching *${name}*`, { parse_mode: 'Markdown' });
+    } else {
+      bot.sendMessage(chatId, '❓ Usage: /watch add <protocol name>');
+    }
+    return;
+  }
+
+  // Remove
+  const removeMatch = arg.match(/^remove\s+(.+)/i);
+  if (removeMatch) {
+    const name = removeMatch[1].trim();
+    if (wl.remove(chatId, name)) {
+      bot.sendMessage(chatId, `✅ Removed *${name}* from watchlist`, { parse_mode: 'Markdown' });
+    } else {
+      bot.sendMessage(chatId, `ℹ️ *${name}* wasn't on your watchlist`, { parse_mode: 'Markdown' });
+    }
+    return;
+  }
+
+  bot.sendMessage(chatId,
+    '❓ Usage:\n' +
+    '/watch — Show watchlist\n' +
+    '/watch add <name> — Track a protocol\n' +
+    '/watch remove <name> — Stop tracking'
+  );
+});
+
+// ── Background Alert Scanner ────────────────────────────────────────
+
+let alertTimer = null;
+
+async function runAlertScan() {
+  try {
+    // Check if anyone has watchlist items
+    const watched = wl.allWatched();
+    if (watched.length === 0) return;
+
+    console.error(`[alerts] Scanning for ${watched.length} watched protocols...`);
+
+    const result = await scanAndFormat(['scanner.js', 'defillama-scanner.js'], { minApy: 0, minTvl: 0, stablecoinsOnly: false });
+
+    // Parse the raw JSONL by running scanners without formatter
+    const [yields, protocols] = await Promise.all([
+      runScanner('scanner.js').catch(() => ''),
+      runScanner('defillama-scanner.js').catch(() => ''),
+    ]);
+
+    const allLines = `${yields}\n${protocols}`.split('\n').filter(Boolean);
+    const items = allLines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+
+    // Check for alerts
+    const alerts = wl.checkAlerts(items);
+
+    // Snapshot current state for next comparison
+    wl.snapshot(items);
+
+    // Send alerts
+    for (const { chatId, alert } of alerts) {
+      try {
+        await bot.sendMessage(chatId, wl.formatAlert(alert), { parse_mode: 'Markdown' });
+      } catch (err) {
+        console.error(`[alerts] Failed to send to ${chatId}: ${err.message}`);
+      }
+    }
+
+    if (alerts.length > 0) {
+      console.error(`[alerts] Sent ${alerts.length} alert(s)`);
+    }
+  } catch (err) {
+    console.error(`[alerts] Scan failed: ${err.message}`);
+  }
+}
+
+function startAlertScanner() {
+  if (alertTimer) return;
+  console.error(`[alerts] Background scanner started (every ${ALERT_INTERVAL_MS / 60000} min)`);
+  alertTimer = setInterval(runAlertScan, ALERT_INTERVAL_MS);
+  // Run once after 1 minute (give bot time to initialize)
+  setTimeout(runAlertScan, 60000);
+}
+
+function stopAlertScanner() {
+  if (alertTimer) { clearInterval(alertTimer); alertTimer = null; }
+}
+
+startAlertScanner();
+
 // ── Graceful shutdown ──────────────────────────────────────────────
-process.on('SIGINT', () => { bot.stopPolling(); process.exit(0); });
-process.on('SIGTERM', () => { bot.stopPolling(); process.exit(0); });
+process.on('SIGINT', () => { stopAlertScanner(); bot.stopPolling(); process.exit(0); });
+process.on('SIGTERM', () => { stopAlertScanner(); bot.stopPolling(); process.exit(0); });
