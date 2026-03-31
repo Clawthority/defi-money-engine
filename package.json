@@ -9,7 +9,8 @@
     "scan:json": "node scanner.js --once",
     "start": "node scanner.js",
     "test": "node --test test/scanner.test.js",
-    "test:syntax": "node -c scanner.js && node -c format.js && echo 'All OK'"
+    "test:syntax": "node -c scanner.js && node -c format.js && node -c bot.js && echo 'All OK'",
+    "bot": "node bot.js"
   },
   "keywords": [
     "defi",
@@ -26,5 +27,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0"
   }
 }

@@ -1,8 +1,21 @@
 # Changelog
 
-## [1.2.0] - 2026-03-30
+## [1.3.0] — 2026-03-31
 ### Added
-- `defillama-scanner.js` — Protocol intelligence scanner with 4 scan types:
+- `bot.js` — Telegram bot interface for DeFi Money Engine
+  - `/scan` — full scan (yields + protocols + airdrops)
+  - `/yields` — yield pools only
+  - `/airdrops` — airdrop candidates only
+  - `/protocols` — protocol intelligence (TVL anomalies, momentum, chain expansion)
+  - `/filter` — per-user filters (min APY, min TVL, stablecoins only)
+  - Pipe architecture: bot spawns scanners and pipes through format.js
+- `node-telegram-bot-api` dependency
+- `npm run bot` script for quick start
+- README: Telegram Bot section with setup, commands, and deployment guide
+
+## [1.2.0] — 2026-03-30
+### Added
+- `defillama-scanner.js` - Protocol intelligence scanner with 4 scan types:
   - TVL anomaly detection (extreme TVL/mcap ratios, divergence signals)
   - Chain airdrop candidate finder (high TVL chains without native tokens)
   - TVL momentum scanning (rapid growth/decline, sustained trends)

@@ -16,10 +16,12 @@
 - [x] State persistence
 - [x] Unit tests (31 tests, 7 suites — all passing)
 - [x] CI/CD pipeline (GitHub Actions)
+- [x] Telegram bot interface (bot.js with /scan, /yields, /airdrops, /protocols, /filter)
 
 ### 🔄 In Progress
-- [ ] Documentation improvements
-- [ ] Feature expansion
+- [ ] Get bot token from @BotFather and deploy
+- [ ] First 5 test users
+- [ ] User feedback collection
 
 ### 📋 Planned
 - [ ] Unit tests
