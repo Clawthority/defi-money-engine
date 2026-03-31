@@ -170,8 +170,6 @@ The bot runs via `node bot.js` with polling. For production, use PM2 or systemd:
 pm2 start bot.js --name defi-engine -- --token=$TELEGRAM_BOT_TOKEN
 ```
 
-## Related Products
-
 ## Tests
 
 ```bash
