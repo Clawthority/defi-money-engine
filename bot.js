@@ -24,6 +24,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const { spawn } = require('child_process');
 const path = require('path');
 const wl = require('./watchlist');
+const premium = require('./premium');
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!TOKEN) {
@@ -35,6 +36,10 @@ const ALERT_INTERVAL_MS = parseInt(process.env.ALERT_INTERVAL_MINUTES || '30', 1
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 console.log('💰 DeFi Money Engine bot started');
+
+// Initialize premium module (Telegram Stars payments)
+premium.setup(bot);
+premium.setupCallbacks(bot);
 
 // ── Per-user filter state ──────────────────────────────────────────
 const userFilters = new Map();
@@ -159,13 +164,14 @@ bot.onText(/\/start/, (msg) => {
     '💰 *DeFi Money Engine*\n\n' +
     'Automated scanner for DeFi yield opportunities, airdrop candidates, and protocol intelligence.\n\n' +
     '*Commands:*\n' +
-    '/scan — Full scan (yields + protocols + airdrops)\n' +
+    '/scan — Full scan (yields + airdrops)\n' +
     '/yields — Best yield pools (stablecoins & ETH)\n' +
     '/airdrops — Airdrop candidates (high TVL, no token)\n' +
-    '/protocols — TVL anomalies, momentum, chain expansion\n' +
+    '/protocols — TVL anomalies, momentum, chain expansion 💎\n' +
     '/filter — Set min APY, min TVL, stablecoins only\n' +
+    '/premium — Upgrade for unlimited scans & alerts\n' +
     '/help — Command reference\n\n' +
-    '🆓 Free while in beta!',
+    '🆓 Free tier: 3 scans/day | 💎 Pro: unlimited + real-time alerts',
     { parse_mode: 'Markdown' }
   );
 });
@@ -173,24 +179,34 @@ bot.onText(/\/start/, (msg) => {
 bot.onText(/\/help/, (msg) => {
   bot.sendMessage(msg.chat.id,
     '💰 *Commands*\n\n' +
-    '/scan — Full scan of everything\n' +
+    '/scan — Full scan (yields + airdrops)\n' +
     '/yields — Yield pools only\n' +
     '/airdrops — Airdrop candidates only\n' +
-    '/protocols — Protocol intelligence\n' +
+    '/protocols — Protocol intelligence 💎\n' +
     '/filter apy=5 — Min APY filter\n' +
     '/filter stablecoins — Toggle stablecoins only\n' +
     '/filter tvl=5000000 — Min TVL filter\n' +
     '/filter reset — Clear all filters\n' +
-    '/filter — Show current filters\n\n' +
-    'Scans use DeFi Llama data. Results update on each scan.',
+    '/filter — Show current filters\n' +
+    '/premium — Upgrade to Pro (unlimited scans)\n\n' +
+    '🆓 Free: 3 scans/day | 💎 Pro: unlimited + alerts + protocol intel',
     { parse_mode: 'Markdown' }
   );
 });
 
 bot.onText(/\/scan/, async (msg) => {
   const chatId = msg.chat.id;
+
+  // Rate limit check (free tier)
+  const scanCheck = premium.canScan(chatId);
+  if (!scanCheck.allowed) {
+    premium.sendUpgradePrompt(bot, chatId);
+    return;
+  }
+
   const statusMsg = await bot.sendMessage(chatId, '⏳ Running full scan...');
   try {
+    premium.recordScan(chatId);
     const filters = getFilters(chatId);
     const result = await scanAndFormat(['scanner.js', 'defillama-scanner.js'], filters);
     await bot.deleteMessage(chatId, statusMsg.message_id);
@@ -207,8 +223,17 @@ bot.onText(/\/scan/, async (msg) => {
 
 bot.onText(/\/yields/, async (msg) => {
   const chatId = msg.chat.id;
+
+  // Rate limit check (free tier)
+  const scanCheck = premium.canScan(chatId);
+  if (!scanCheck.allowed) {
+    premium.sendUpgradePrompt(bot, chatId);
+    return;
+  }
+
   const statusMsg = await bot.sendMessage(chatId, '⏳ Scanning yield pools...');
   try {
+    premium.recordScan(chatId);
     const filters = getFilters(chatId);
     const result = await scanAndFormat(['scanner.js'], filters);
     await bot.deleteMessage(chatId, statusMsg.message_id);
