@@ -24,7 +24,12 @@ function loadConfig() {
     console.error('Copy config.example.json to config.json and edit it.');
     process.exit(1);
   }
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  } catch (e) {
+    console.error(`Failed to parse config: ${e.message}`);
+    process.exit(1);
+  }
 }
 
 // ── Rate limiter ────────────────────────────────────────────────────
@@ -81,7 +86,11 @@ function fetch(url, timeoutMs = 15000, maxRetries = 2) {
 function loadState(stateFile) {
   const p = path.resolve(stateFile);
   if (fs.existsSync(p)) {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    try {
+      return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch (e) {
+      console.error(`Corrupt state file (${p}), resetting: ${e.message}`);
+    }
   }
   return { reportedPools: {}, lastRun: null };
 }

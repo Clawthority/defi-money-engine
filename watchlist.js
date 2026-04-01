@@ -254,8 +254,87 @@ function formatAlert(alert) {
   return msg;
 }
 
+// ── Alert Digest ─────────────────────────────────────────────────────
+
+/**
+ * Record an alert to the digest history for a user.
+ * @param {string} chatId
+ * @param {{project: string, type: string, parts: string[], item: object}} alert
+ */
+function recordAlert(chatId, alert) {
+  const data = load();
+  if (!data.digests) data.digests = {};
+  if (!data.digests[chatId]) data.digests[chatId] = [];
+
+  data.digests[chatId].push({
+    ...alert,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Keep last 50 alerts per user
+  if (data.digests[chatId].length > 50) {
+    data.digests[chatId] = data.digests[chatId].slice(-50);
+  }
+
+  save(data);
+}
+
+/**
+ * Get all pending (unread) alerts for a user as a digest message.
+ * @param {string} chatId
+ * @returns {{alerts: object[], message: string, count: number}}
+ */
+function getDigest(chatId) {
+  const data = load();
+  const alerts = (data.digests && data.digests[chatId]) || [];
+
+  if (alerts.length === 0) {
+    return { alerts: [], message: '📭 No pending alerts. Your watchlist is quiet!', count: 0 };
+  }
+
+  let msg = `📬 *Alert Digest* (${alerts.length} alert${alerts.length > 1 ? 's' : ''})\n\n`;
+
+  // Group by project
+  const byProject = {};
+  for (const a of alerts) {
+    const proj = a.project || 'unknown';
+    if (!byProject[proj]) byProject[proj] = [];
+    byProject[proj].push(a);
+  }
+
+  for (const [project, projectAlerts] of Object.entries(byProject)) {
+    msg += `*${project}*\n`;
+    for (const a of projectAlerts) {
+      for (const part of a.parts) {
+        msg += `  • ${part}\n`;
+      }
+    }
+    msg += '\n';
+  }
+
+  msg += 'Use `/digest clear` to mark as read.';
+
+  return { alerts, message: msg, count: alerts.length };
+}
+
+/**
+ * Clear digest history for a user.
+ * @param {string} chatId
+ * @returns {number} Number of cleared alerts
+ */
+function clearDigest(chatId) {
+  const data = load();
+  if (!data.digests || !data.digests[chatId]) return 0;
+
+  const count = data.digests[chatId].length;
+  data.digests[chatId] = [];
+  save(data);
+  return count;
+}
+
 module.exports = {
   add, remove, list, allWatched, watchers,
   snapshot, checkAlerts, formatAlert,
+  recordAlert, getDigest, clearDigest,
   ALERT_THRESHOLDS,
 };
